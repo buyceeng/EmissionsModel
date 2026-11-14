@@ -1,0 +1,17 @@
+# Окружение и кэш
+.venv/
+venv/
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+
+# Генерируется командой «python -m ecometeo.cli train»
+ecometeo/artifacts/
+
+# Материалы организаторов, которые не публикуем (дубль таблицы и презентация кейса)
+/data.xlsx
+*.pptx
+
+# Временные файлы Excel
+~$*
