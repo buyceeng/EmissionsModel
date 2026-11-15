@@ -1,6 +1,8 @@
 """Прогноз на завтра и сценарии для периодов НМУ (по линейной модели)."""
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pandas as pd
 
@@ -27,28 +29,69 @@ def make_plan(hours: int = 24, power: float = 66.0, td_min: float = 59.0, scrap_
     return plan
 
 
+def stop_window_range(ts: pd.Series) -> tuple[str, str]:
+    """Первый и последний час прогноза в том виде, как их вводят в остановы: «15.11 13», «18.11 12»."""
+    def label(t):
+        t = pd.Timestamp(t)
+        h = t.hour if t.hour != 0 else 24                     # 00:00 = 24-й час предыдущих суток
+        return f"{(t - pd.Timedelta('1h')):%d.%m} {h}"
+    return label(ts.iloc[0]), label(ts.iloc[-1])
+
+
 def parse_stops(text: str, ts: pd.Series) -> tuple[pd.Series, str | None]:
     """Окна останова печи вида «15.11 10-14; 16.11 8-12» (часы конца, включительно).
 
-    Возвращает маску остановленных часов для меток ts и текст ошибки (если есть).
+    Каждое окно проверяется: формат, существующая дата, часы 1–24, начало не позже конца
+    и — главное — что окно попадает в часы прогноза. Прошедшие даты и даты за горизонтом
+    прогноза не применяются, а возвращаются в тексте ошибки, чтобы опечатка (например,
+    10-й месяц вместо 11-го) не прошла незаметно. Правильные окна применяются в любом случае.
+
+    Возвращает маску остановленных часов для меток ts и текст ошибки (или None).
     """
     stop = pd.Series(False, index=ts.index)
-    if not text or not text.strip():
+    if not text or not text.strip() or ts.empty:
         return stop, None
+    hour = ts.dt.hour.where(ts.dt.hour != 0, 24)              # 00:00 = 24-й час предыдущих суток
+    date = (ts - pd.Timedelta("1h")).dt
+    first, last = stop_window_range(ts)
+    years = sorted(set(date.year))
+    errors = []
+    text = re.sub(r"\b(\d{1,2}),(\d{1,2})(?=\s)", r"\1.\2", text)   # «16,11 10-14» — опечатка, это дата 16.11
     for part in text.replace(",", ";").split(";"):
-        part = part.strip()
+        part = " ".join(part.split())
         if not part:
             continue
         try:
-            day, hrs = part.split()
+            day, hrs = part.split(" ")
             dd, mm = (int(x) for x in day.split("."))
             h1, h2 = (int(x) for x in hrs.split("-"))
         except ValueError:
-            return stop, f"не понял «{part}»: нужно так — 15.11 10-14"
-        hour = ts.dt.hour.where(ts.dt.hour != 0, 24)          # 00:00 = 24-й час предыдущих суток
-        date = (ts - pd.Timedelta("1h")).dt
-        stop |= (date.day == dd) & (date.month == mm) & hour.between(h1, h2)
-    return stop, None
+            errors.append(f"«{part}» — не понял запись, нужно так: {first.split()[0]} 10-14")
+            continue
+        if not any(_is_date(y, mm, dd) for y in years):
+            errors.append(f"«{part}» — такой даты нет")
+            continue
+        if not (1 <= h1 <= 24 and 1 <= h2 <= 24):
+            errors.append(f"«{part}» — часы должны быть от 1 до 24")
+            continue
+        if h1 > h2:
+            errors.append(f"«{part}» — начало позже конца; через полночь разбейте на два окна: "
+                          f"{dd:02d}.{mm:02d} {h1}-24; следующий день 1-{h2}")
+            continue
+        hit = (date.day == dd) & (date.month == mm) & hour.between(h1, h2)
+        if not hit.any():
+            errors.append(f"«{part}» — не входит в прогноз, остановы можно задать с {first} ч по {last} ч")
+            continue
+        stop |= hit
+    return stop, ("; ".join(errors) if errors else None)
+
+
+def _is_date(y, m, d) -> bool:
+    try:
+        pd.Timestamp(year=int(y), month=int(m), day=int(d))
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
 def plan_from_weather(weather: pd.DataFrame, power: float = 66.0, td_min: float = 59.0,

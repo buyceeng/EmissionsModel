@@ -6,6 +6,20 @@
 
 {% macro lamp(cls) -%}<span class="lamp {{ cls }}"></span>{%- endmacro %}
 
+{# Ползунок нагрузки печи: от −50 % (снизить) до +20 % (повысить; +20 % ≈ 79 МВт·ч — максимум печи в 2022) #}
+{% macro load_slider(value) -%}
+{% set v = value|int %}
+<label class="slider">Нагрузка печи
+  <span class="slider-row">
+    <input type="range" name="load" min="-50" max="20" step="5" value="{{ v }}" style="--p:{{ ((v + 50) / 70 * 100)|round(1) }}%"
+           aria-label="Изменение нагрузки печи, %"
+           oninput="this.nextElementSibling.textContent=(this.value>0?'+':'')+this.value+' %';this.style.setProperty('--p',((+this.value+50)/70*100)+'%')">
+    <b class="slider-v">{{ ('+' if v > 0 else '') ~ v }} %</b>
+  </span>
+  <span class="slider-scale"><span>−50 %</span><span class="zero">0</span><span>+20 %</span></span>
+</label>
+{%- endmacro %}
+
 {% macro status(text, cls) -%}
 <div class="status {{ cls }}"><span class="lamp {{ cls }}"></span>{{ text }}</div>
 {%- endmacro %}

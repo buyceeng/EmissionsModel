@@ -36,12 +36,6 @@ for _k in (1, 2, 3):
 
 
 class MLPEnsemble:
-    """Ансамбль из нескольких маленьких нейросетей с разной инициализацией.
-
-    Маленькая сеть (8 нейронов, tanh) + регуляризация: на 4 тыс. часов
-    большие сети переобучаются (проверено при подборе).
-    """
-
     def __init__(self, n_models: int = 5, hidden=(8,), alpha: float = 0.3, seed: int = 0):
         self.models = [
             make_pipeline(
@@ -74,8 +68,6 @@ class DustModel:
     features: list = field(default_factory=lambda: list(FEATURES))
     ranges: dict = field(default_factory=dict)     # диапазон признаков в обучении
     metrics: dict = field(default_factory=dict)
-    # Поправка по последнему замеру: ошибка модели держится часами, её доля
-    # через h часов ≈ ar_rho**h (оценивается в train по честной проверке).
     ar_rho: float = 0.93
 
     def correction(self, last_resid, hours):
@@ -114,8 +106,9 @@ class DustModel:
                              "мг/Нм³": [2 * np.hypot(ws, wc)]})
         return pd.concat([t, wind], ignore_index=True)
 
-    def out_of_range(self, X: pd.DataFrame, cols=("T_air", "RH_air", "P_air", "wind")) -> pd.Series:
-        """True, если час выходит за диапазон обучения (прогноз — экстраполяция)."""
+    def out_of_range(self, X: pd.DataFrame, cols=("T_air", "RH_air", "P_air", "wind", "power")) -> pd.Series:
+        """True, если час выходит за диапазон обучения (прогноз — экстраполяция):
+        погода, которой не было в обучении, или мощность печи выше максимума 2022 г."""
         bad = pd.Series(False, index=X.index)
         for c in cols:
             lo, hi = self.ranges.get(c, (-np.inf, np.inf))

@@ -18,18 +18,17 @@
         {{ ui.row('Скорость ветра', '%.0f'|format(m.wind), 'км/ч') }}
         {{ ui.row('Ветер дует с', (m.wind_dir|compass) ~ ' (' ~ '%.0f°'|format(m.wind_dir) ~ ')', '') }}
         {{ ui.row('Слой перемеш.', '%.0f'|format(m.blh) if m.blh is not none else '—', 'м', 'warn' if m.blh is not none and m.blh < 200 else '') }}
-        <p class="note">Низкий слой перемешивания (&lt; 200 м, инверсия — типичные НМУ) — пыли больше.</p>
-        <p class="note">Жёлтый сектор — направление, при котором пыли больше (по модели: {{ wind_dusty }}).</p>
       </div>
     </section>
     <section class="panel">
       <div class="ttl">План печи</div>
       <div class="body">
+        {% if stop_err %}<div class="alert">Остановы: {{ stop_err }}</div>{% endif %}
         <form class="ctl" method="get">
           <label>Мощность, МВт·ч<input name="power" value="{{ p.power }}"></label>
           <label>Лом, т/ч<input name="scrap" value="{{ p.scrap }}"></label>
-          <label>Снизить нагрузку, %<input name="cut" value="{{ p.cut }}"></label>
-          <label>Остановы (дд.мм чч-чч)<input class="wide" name="stops" value="{{ p.stops }}" placeholder="16.11 10-14; 17.11 8-12"></label>
+          {{ ui.load_slider(p.load) }}
+          <label>Остановы: с {{ stop_range[0] }} ч по {{ stop_range[1] }} ч<input class="wide{{ ' bad' if stop_err }}" name="stops" value="{{ p.stops }}" placeholder="{{ stop_range[0].split()[0] }} 10-14"></label>
           <label>Последний замер прибора, мг/Нм³<input name="meas" value="{{ p.meas if p.meas is not none else '' }}" placeholder="необязательно"></label>
           {% if not online %}
           <label>t воздуха, °C<input name="temp" value="{{ p.temp }}"></label>
@@ -39,7 +38,6 @@
           {% endif %}
           <button class="btn">Применить</button>
         </form>
-        <p class="note">Типовой режим: 66 МВт·ч и 180 т лома в час. Последний замер уточняет прогноз ближайших часов.</p>
       </div>
     </section>
   </div>
@@ -52,7 +50,7 @@
   </section>
 
   <section class="panel">
-    <div class="ttl">Прогноз выбросов на 72 часа<span class="sub">погода: {{ source }} · <a href="/forecast?power={{ p.power }}&scrap={{ p.scrap }}&cut={{ p.cut }}&stops={{ p.stops|urlencode }}{{ '&meas=' ~ p.meas if p.meas is not none else '' }}" style="color:#fff">открыть прогноз →</a></span></div>
+    <div class="ttl">Прогноз выбросов на 72 часа<span class="sub">погода: {{ source }} · <a href="/forecast?power={{ p.power }}&scrap={{ p.scrap }}&load={{ p.load|int }}&stops={{ p.stops|urlencode }}{{ '&meas=' ~ p.meas if p.meas is not none else '' }}" style="color:#fff">открыть прогноз →</a></span></div>
     <div class="body">
       <div class="chart"><img src="data:image/png;base64,{{ chart }}" alt="Прогноз пыли на 72 часа"></div>
       <h3 style="margin:10px 0 6px;font-size:13px">Суточные сводки</h3>
