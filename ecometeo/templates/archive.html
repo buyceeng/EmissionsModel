@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}{% import "_mnemo.html" as mn with context %}
+{% block badge %}<span class="badge arch">АРХИВ 2022</span>{% endblock %}
+{% block body %}
+<h1 class="page">Архив 2022: замер против ожидаемого <span class="sub">реальные данные газоанализатора и печи</span></h1>
+<section class="panel">
+  <div class="ttl">Выбор времени</div>
+  <div class="body">
+    <form class="ctl" method="get">
+      <label>Дата<input type="date" name="date" value="{{ date }}" min="2022-01-01" max="2022-12-31" style="width:150px"></label>
+      <label>Час (конец)<select name="hour">{% for h in range(1, 25) %}<option value="{{ h % 24 }}" {{ 'selected' if hour == h % 24 }}>{{ '%02d:00'|format(h) }}</option>{% endfor %}</select></label>
+      <button class="btn">Показать</button>
+      <a class="btn grey" href="/archive?date=2022-02-20&hour=14">Пример с превышениями</a>
+    </form>
+  </div>
+</section>
+{% if empty %}
+<div class="alert" style="margin-top:12px">Нет данных за {{ date }}.</div>
+{% else %}
+<div class="grid g-side" style="margin-top:12px">
+  <section class="panel schema">
+    <div class="ttl">Мнемосхема · {{ date }} {{ '%02d:00'|format(hour if hour else 24) }}</div>
+    <div class="body">{{ mn.mnemo(m) }}</div>
+  </section>
+  <div class="col">
+    <section class="panel">
+      <div class="ttl">Состояние часа</div>
+      <div class="body">
+        {{ ui.status(m.analyzer, m.an_cls) }}
+        {{ ui.row('Замер', fnum(m.measured, '{:.4f}'), 'мг/Нм³') }}
+        {{ ui.row('Ожидается', fnum(m.expected, '{:.4f}'), 'мг/Нм³') }}
+        {{ ui.row('С поправкой', fnum(m.corr, '{:.4f}'), 'мг/Нм³') }}
+        {{ ui.scale(m.measured if m.measured is not none else m.expected, lv) }}
+      </div>
+    </section>
+    <section class="panel">
+      <div class="ttl">Сигналы за сутки</div>
+      <div class="body">
+        {% for k, (v, c) in counts.items() %}<div class="row" style="grid-template-columns:auto 1fr 50px"><span>{{ ui.lamp(c) }}</span><span class="l">{{ k }}</span><span class="val">{{ v }}</span></div>{% endfor %}
+        <p class="note">ПРЕВЫШЕНИЕ — замер выше ожидаемого больше чем на 2σ: проверить газоочистку и ход плавки. ПРИБОР МОЛЧИТ — печь работает, анализатор выключен.</p>
+      </div>
+    </section>
+  </div>
+</div>
+<section class="panel" style="margin-top:12px">
+  <div class="ttl">Сутки: замер и ожидаемая пыль</div>
+  <div class="body"><div class="chart"><img src="data:image/png;base64,{{ chart }}" alt="Замер и ожидаемая пыль за сутки"></div></div>
+</section>
+<section class="panel" style="margin-top:12px">
+  <div class="ttl">Журнал по часам</div>
+  <div class="body scroll">
+    <table class="tbl"><tr><th>Час (конец)</th><th>Режим</th><th>Мощность</th><th>t, °C</th><th>Ветер дует с</th><th>Замер</th><th>Ожидается</th><th>С поправкой</th><th>Отклонение</th><th>Сигнал</th></tr>
+    {% for r in rows %}<tr class="{{ r.sig[1] if r.sig[1] in ('bad','warn') else '' }}"><td class="t">{{ r.ts.strftime('%H:%M') }}</td><td class="t">{{ r.mode }}</td><td>{{ fnum(r.power) }}</td>
+      <td>{{ fnum(r.T) }}</td><td>{{ fnum(r.wd, '{:.0f}°') }}</td><td>{{ fnum(r.meas, '{:.4f}') }}</td><td>{{ fnum(r.exp, '{:.4f}') }}</td><td>{{ fnum(r.corr, '{:.4f}') }}</td><td>{{ fnum(r.z, '{:+.1f}σ') }}</td>
+      <td class="t s">{{ ui.lamp(r.sig[1]) }} {{ r.sig[0] }}</td></tr>{% endfor %}
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

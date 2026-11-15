@@ -1,0 +1,22 @@
+rows 4203 months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7)]
+=== Абляция почасовой погоды (Ridge) ===
+base суточная                                              LOMO R2= 0.787 MAE= 9.33e-3 | JanApr->MayJul R2= 0.514  (0s)
+почасовая 4 переменные                                     LOMO R2= 0.806 MAE= 8.88e-3 | JanApr->MayJul R2= 0.561  (0s)
+почасовая + dew_h                                          LOMO R2= 0.804 MAE= 8.92e-3 | JanApr->MayJul R2= 0.565  (0s)
+почасовая + rad_h                                          LOMO R2= 0.806 MAE= 8.88e-3 | JanApr->MayJul R2= 0.563  (0s)
+почасовая + cloud_h                                        LOMO R2= 0.810 MAE= 8.85e-3 | JanApr->MayJul R2= 0.608  (0s)
+почасовая + snow_h                                         LOMO R2= 0.800 MAE= 9.04e-3 | JanApr->MayJul R2= 0.546  (0s)
+почасовая + prec_h                                         LOMO R2= 0.803 MAE= 8.93e-3 | JanApr->MayJul R2= 0.473  (0s)
+почасовая + gust_h                                         LOMO R2= 0.810 MAE= 8.80e-3 | JanApr->MayJul R2= 0.547  (0s)
+почасовая + T_air                                          LOMO R2= 0.808 MAE= 8.83e-3 | JanApr->MayJul R2= 0.594  (0s)
+почасовая + T_h24                                          LOMO R2= 0.805 MAE= 8.91e-3 | JanApr->MayJul R2= 0.578  (0s)
+почасовая + направление ветра (sin,cos)                    LOMO R2= 0.843 MAE= 7.77e-3 | JanApr->MayJul R2= 0.507  (0s)
+почасовая + время суток                                    LOMO R2= 0.799 MAE= 8.99e-3 | JanApr->MayJul R2= 0.561  (0s)
+почасовая + напр.ветра + время суток                       LOMO R2= 0.839 MAE= 7.85e-3 | JanApr->MayJul R2= 0.506  (0s)
+почасовая + напр.ветра + время суток + T_air               LOMO R2= 0.842 MAE= 7.77e-3 | JanApr->MayJul R2= 0.541  (0s)
+ВСЁ без снега                                              LOMO R2= 0.845 MAE= 7.75e-3 | JanApr->MayJul R2= 0.537  (0s)
+MLP | почасовая + напр.ветра + время суток                 LOMO R2= 0.839 MAE= 7.87e-3 | JanApr->MayJul R2= 0.512  (29s)
+HGB | почасовая + напр.ветра + время суток                 LOMO R2= 0.821 MAE= 8.44e-3 | JanApr->MayJul R2= 0.324  (5s)
+Сплайны | почасовая + напр.ветра + время суток             LOMO R2= 0.833 MAE= 8.00e-3 | JanApr->MayJul R2= 0.381  (0s)
+ветер: пыли больше всего при ветре ИЗ направления ~240°, амплитуда 7.9e-3 мг/Нм3
+коэф. T_h на 1°C: 1.98e-3, power на 1 МВт*ч: 0.124e-3

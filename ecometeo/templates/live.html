@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}{% import "_mnemo.html" as mn with context %}
+{% block head %}<meta http-equiv="refresh" content="600">{% endblock %}
+{% block badge %}{% if online %}<span class="badge live">● ОНЛАЙН-ПОГОДА</span>{% else %}<span class="badge offline">НЕТ СВЯЗИ</span>{% endif %}{% endblock %}
+{% block body %}
+{% if err %}<div class="alert">Погода: {{ err }}. Используется ручной ввод (форма «План печи»).</div>{% endif %}
+<div class="grid g-main">
+
+  {# ---------- левая колонка ---------- #}
+  <div class="col">
+    <section class="panel">
+      <div class="ttl">Метеостанция<span class="sub">{{ 'Open-Meteo · обновл. каждые 10 мин' if online else 'ручной ввод' }}</span></div>
+      <div class="body">
+        <div class="compass">{{ ui.compass(m.wind_dir) }}</div>
+        {{ ui.row('Температура', '%.1f'|format(m.T), '°C') }}
+        {{ ui.row('Влажность', '%.0f'|format(m.RH), '%') }}
+        {{ ui.row('Давление', '%.0f'|format(m.P), 'гПа') }}
+        {{ ui.row('Скорость ветра', '%.0f'|format(m.wind), 'км/ч') }}
+        {{ ui.row('Ветер дует с', (m.wind_dir|compass) ~ ' (' ~ '%.0f°'|format(m.wind_dir) ~ ')', '') }}
+        {{ ui.row('Слой перемеш.', '%.0f'|format(m.blh) if m.blh is not none else '—', 'м', 'warn' if m.blh is not none and m.blh < 200 else '') }}
+        <p class="note">Низкий слой перемешивания (&lt; 200 м, инверсия — типичные НМУ) — пыли больше.</p>
+        <p class="note">Жёлтый сектор — направление, при котором пыли больше (по модели: {{ wind_dusty }}).</p>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="ttl">План печи</div>
+      <div class="body">
+        <form class="ctl" method="get">
+          <label>Мощность, МВт·ч<input name="power" value="{{ p.power }}"></label>
+          <label>Лом, т/ч<input name="scrap" value="{{ p.scrap }}"></label>
+          <label>Снизить нагрузку, %<input name="cut" value="{{ p.cut }}"></label>
+          <label>Остановы (дд.мм чч-чч)<input class="wide" name="stops" value="{{ p.stops }}" placeholder="16.11 10-14; 17.11 8-12"></label>
+          <label>Последний замер прибора, мг/Нм³<input name="meas" value="{{ p.meas if p.meas is not none else '' }}" placeholder="необязательно"></label>
+          {% if not online %}
+          <label>t воздуха, °C<input name="temp" value="{{ p.temp }}"></label>
+          <label>Влажность, %<input name="rh" value="{{ p.rh }}"></label>
+          <label>Ветер, км/ч<input name="wind" value="{{ p.wind }}"></label>
+          <label>Ветер дует с, °<input name="wind_dir" value="{{ p.wind_dir }}"></label>
+          {% endif %}
+          <button class="btn">Применить</button>
+        </form>
+        <p class="note">Типовой режим: 66 МВт·ч и 180 т лома в час. Последний замер уточняет прогноз ближайших часов.</p>
+      </div>
+    </section>
+  </div>
+
+  {# ---------- центр: мнемосхема и прогноз под ней ---------- #}
+  <div class="col center">
+  <section class="panel schema">
+    <div class="ttl">Мнемосхема газохода ДСП<span class="sub">сейчас · {{ m.weather_note }}</span></div>
+    <div class="body">{{ mn.mnemo(m) }}</div>
+  </section>
+
+  <section class="panel">
+    <div class="ttl">Прогноз выбросов на 72 часа<span class="sub">погода: {{ source }} · <a href="/forecast?power={{ p.power }}&scrap={{ p.scrap }}&cut={{ p.cut }}&stops={{ p.stops|urlencode }}{{ '&meas=' ~ p.meas if p.meas is not none else '' }}" style="color:#fff">открыть прогноз →</a></span></div>
+    <div class="body">
+      <div class="chart"><img src="data:image/png;base64,{{ chart }}" alt="Прогноз пыли на 72 часа"></div>
+      <h3 style="margin:10px 0 6px;font-size:13px">Суточные сводки</h3>
+      <div class="days">
+        {% for d in days %}
+        <div class="day"><div class="dh">{{ ui.lamp(d.cls) }} {{ d.day }} {{ d.wd }}</div>
+          {{ ui.row('Пыль ср.', '%.4f'|format(d.mean)) }}
+          {{ ui.row('Пыль макс.', '%.4f'|format(d.max), '', d.cls) }}
+          {{ ui.row('Пик в', d.peak) }}
+          {{ ui.row('t воздуха', '%.0f…%.0f'|format(d.tmin, d.tmax)) }}
+          {{ ui.row('Ветер с', d.wind) }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  </div>
+
+  {# ---------- правая колонка ---------- #}
+  <div class="col">
+    <section class="panel">
+      <div class="ttl">Ожидаемая пыль сейчас</div>
+      <div class="body">
+        <div class="row" style="grid-template-columns:1fr auto"><span class="val big {{ cls }}">{{ '%.4f'|format(m.expected) }}</span><span class="unit">мг/Нм³</span></div>
+        {{ ui.status('УРОВЕНЬ: ' ~ (cls|level_name|upper), cls) }}
+        {{ ui.scale(m.expected, lv) }}
+        {{ ui.row('Норма от', '%.4f'|format(m.lo), 'мг/Нм³') }}
+        {{ ui.row('Норма до', '%.4f'|format(m.hi), 'мг/Нм³') }}
+        {% if out_of_range %}<div class="hint">Погода вне опыта модели: прогноз — продолжение линии, доверять меньше.</div>{% endif %}
+        <p class="note">Уровни — по замерам 2022 г.: «повышенный» выше, чем в 3 из 4 часов; «высокий» — выше, чем в 95 % часов.</p>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="ttl">Точность модели<span class="sub"><a href="/quality" style="color:#fff">подробнее →</a></span></div>
+      <div class="body">
+        {{ ui.status('ТОЧНОСТЬ: ' ~ gname, gcls) }}
+        {{ ui.row('Средняя ошибка', '%.1f'|format(q.mape), '%') }}
+        {{ ui.row('Ошибка ≤ 10 %', '%.0f'|format(q.within10), '% часов') }}
+        {{ ui.row('Ошибка ≤ 20 %', '%.0f'|format(q.within20), '% часов') }}
+        {{ ui.row('Ср. ошибка', '%.4f'|format(q.mae), 'мг/Нм³') }}
+        {{ ui.row('R² (объяснено)', '%.2f'|format(q.r2), '') }}
+      </div>
+    </section>
+    <section class="panel">
+      <div class="ttl">Пики пыли в ближайшие 72 ч</div>
+      <div class="body">
+        {% for k in peaks %}
+        <div class="row" style="grid-template-columns:auto 1fr 70px"><span>{{ ui.lamp(k.cls) }}</span><span class="l">{{ k.ts.strftime('%d.%m %H:%M') }} · {{ '%.0f'|format(k.T) }} °C</span><span class="val {{ k.cls }}">{{ '%.4f'|format(k.v) }}</span></div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

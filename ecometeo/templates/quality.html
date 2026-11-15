@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+{% block badge %}<span class="badge arch">ПРОВЕРКА НА 2022</span>{% endblock %}
+{% block body %}
+<h1 class="page">Качество модели: насколько точно она определяет пыль
+  <span class="sub">честная проверка — каждый месяц предсказан моделью, которая его не видела ({{ q.n }} часов)</span></h1>
+
+<div class="grid g-4">
+  <div class="kpi"><div class="v">{{ '%.1f'|format(q.mape) }}<small> %</small></div><div class="l">средняя ошибка прогноза часа</div>
+    <div class="h">в мг/Нм³: {{ '%.4f'|format(q.mae) }} при средней пыли {{ '%.3f'|format(q.mean_y) }}</div></div>
+  <div class="kpi"><div class="v">{{ '%.0f'|format(q.within10) }}<small> %</small></div><div class="l">часов с ошибкой не больше 10 %</div>
+    <div class="h">≈ {{ '%.0f'|format(q.within10/100*4) }} из 4 часов</div></div>
+  <div class="kpi"><div class="v">{{ '%.0f'|format(q.within20) }}<small> %</small></div><div class="l">часов с ошибкой не больше 20 %</div>
+    <div class="h">в 9 из 10 часов ошибка меньше {{ '%.0f'|format(q.p90_ape) }} %</div></div>
+  <div class="kpi"><div class="v">{{ '%.2f'|format(q.r2) }}</div><div class="l">R² — доля объяснённых колебаний пыли</div>
+    <div class="h">1 — идеально, 0 — не лучше среднего; корреляция r = {{ '%.2f'|format(q.r) }}</div></div>
+</div>
+
+<div class="grid g-3" style="margin-top:12px">
+  <section class="panel"><div class="ttl">Замер против прогноза</div><div class="body"><div class="chart"><img src="data:image/png;base64,{{ scatter }}" alt="Замер против прогноза"></div>
+    <p class="note">Каждая точка — час. Чем ближе к диагонали, тем точнее. Зелёная полоса — ошибка до 10 %.</p></div></section>
+  <section class="panel"><div class="ttl">Как часто и на сколько ошибается</div><div class="body"><div class="chart"><img src="data:image/png;base64,{{ hist }}" alt="Распределение ошибки"></div>
+    <p class="note">Типичная (медианная) ошибка — {{ '%.1f'|format(q.median_ape) }} %. Систематического завышения/занижения нет (сдвиг {{ '%+.4f'|format(q.bias) }}).</p></div></section>
+  <section class="panel"><div class="ttl">Ошибка по месяцам</div><div class="body"><div class="chart"><img src="data:image/png;base64,{{ months }}" alt="Ошибка по месяцам"></div>
+    <p class="note">Зимой ошибка выше: в феврале много перерывов в работе прибора и печи.</p></div></section>
+</div>
+
+<section class="panel" style="margin-top:12px">
+  <div class="ttl">Пример: неделя 14–20 марта 2022</div>
+  <div class="body"><div class="chart"><img src="data:image/png;base64,{{ week }}" alt="Неделя: замер и прогноз"></div></div>
+</section>
+
+<div class="grid g-2" style="margin-top:12px;align-items:start">
+  <div class="col">
+  <section class="panel">
+    <div class="ttl">Сравнение моделей</div>
+    <div class="body">
+      <table class="tbl">
+        <tr><th>Модель</th><th>Ср. ошибка, %</th><th>Ошибка ≤10 %</th><th>R²</th><th>R², янв–апр → май–июл</th></tr>
+        <tr class="ok"><td class="t"><b>Линейная (используется)</b></td><td>{{ '%.1f'|format(q.mape) }}</td><td>{{ '%.0f'|format(q.within10) }} %</td><td>{{ '%.3f'|format(q.r2) }}</td><td>{{ '%.2f'|format(metrics['Линейная (основная)']['R2_янв-апр→май-июл']) }}</td></tr>
+        <tr><td class="t">Нейросеть (5 MLP)</td><td>{{ '%.1f'|format(qn.mape) }}</td><td>{{ '%.0f'|format(qn.within10) }} %</td><td>{{ '%.3f'|format(qn.r2) }}</td><td>{{ '%.2f'|format(metrics['Нейросеть (ансамбль MLP)']['R2_янв-апр→май-июл']) }}</td></tr>
+        <tr title="experiments/compare_models_result.txt, суточная погода"><td class="t">Градиентный бустинг</td><td>—</td><td>—</td><td>0.758</td><td>0.16</td></tr>
+        <tr title="experiments/compare_models_result.txt, суточная погода"><td class="t">Случайный лес</td><td>—</td><td>—</td><td>0.736</td><td>−0.04</td></tr>
+        <tr title="experiments/compare_models_result.txt, суточная погода"><td class="t">Большая нейросеть 64-32</td><td>—</td><td>—</td><td>0.627</td><td>−0.94</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="ttl">Поправка по последнему замеру<span class="sub">коэф. переноса ошибки {{ '%.2f'|format(rho) }}</span></div>
+    <div class="body">
+      <table class="tbl">
+        <tr><th>Последний замер был</th><th>Ошибка без поправки</th><th>Ошибка с поправкой</th><th>Ошибка ≤ 10 %</th></tr>
+        {% for _, r in corr.iterrows() %}<tr class="{{ 'ok' if r['corr'] <= 5 else '' }}"><td class="t">{{ r['h']|int }} ч назад</td><td>{{ '%.1f %%'|format(r['base']) }}</td><td><b>{{ '%.1f %%'|format(r['corr']) }}</b></td><td>{{ '%.0f %%'|format(r['within10']) }} часов</td></tr>{% endfor %}
+      </table>
+      <div class="hint">Модель ошиблась на Δ в последний замер → к прогнозу добавляется Δ·{{ '%.2f'|format(rho) }}<sup>h</sup>, где h — часов после замера. Сигнал «ПРЕВЫШЕНИЕ» считается без поправки.</div>
+    </div>
+  </section>
+  </div>
+
+  <section class="panel">
+    <div class="ttl">Формула модели: вклад факторов</div>
+    <div class="body">
+      <table class="tbl"><tr><th>Фактор</th><th>Изменение пыли, мг/Нм³</th></tr>
+      {% for _, r in coefs.iterrows() %}<tr><td class="t">{{ r['признак'] }}</td><td>{{ '%+.6f'|format(r['мг/Нм³']) }}</td></tr>{% endfor %}
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

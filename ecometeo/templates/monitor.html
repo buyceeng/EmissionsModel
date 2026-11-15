@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% set active='m' %}{% block body %}
+<h2>Монитор суток</h2>
+<div class="card"><form><label>Дата<input type="date" name="date" value="{{date}}" min="2022-01-01" max="2022-12-31"></label><button>Показать</button></form>
+<p class="note">Сигналы: ПРЕВЫШЕНИЕ — замер выше ожидаемого больше чем на 2σ; ПРИБОР_МОЛЧИТ — печь работает, анализатор выключен; СБОЙ_ПРИБОРА — невозможные значения; ВНЕ_ОПЫТА — погода вне диапазона обучения, ожидаемому доверять меньше.</p></div>
+{% if chart %}<div class="card"><img src="data:image/png;base64,{{chart}}"></div><div class="card">{{table|safe}}</div>
+{% else %}<div class="card">Нет данных за эту дату.</div>{% endif %}
+{% endblock %}

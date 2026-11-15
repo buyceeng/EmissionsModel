@@ -1,0 +1,38 @@
+{# Общие элементы интерфейса #}
+
+{% macro row(label, value, unit='', cls='') -%}
+<div class="row"><span class="l">{{ label }}</span><span class="val {{ cls }}">{{ value }}</span><span class="unit">{{ unit }}</span></div>
+{%- endmacro %}
+
+{% macro lamp(cls) -%}<span class="lamp {{ cls }}"></span>{%- endmacro %}
+
+{% macro status(text, cls) -%}
+<div class="status {{ cls }}"><span class="lamp {{ cls }}"></span>{{ text }}</div>
+{%- endmacro %}
+
+{# Компас: стрелка показывает, ОТКУДА дует ветер; сектор ~240° — «пыльный» по модели #}
+{% macro compass(deg, dusty=240, size=130) -%}
+<svg width="{{ size }}" height="{{ size }}" viewBox="-60 -60 120 120" aria-label="Направление ветра {{ deg|round|int }}°">
+  <circle r="54" fill="#f4f6f7" stroke="#7b838b" stroke-width="2"/>
+  <path d="M0 0 L{{ (54*sin_(dusty-30))|round(1) }} {{ (-54*cos_(dusty-30))|round(1) }} A54 54 0 0 1 {{ (54*sin_(dusty+30))|round(1) }} {{ (-54*cos_(dusty+30))|round(1) }} Z" fill="#e6a10033"/>
+  {% for a, n in [(0,'С'),(90,'В'),(180,'Ю'),(270,'З')] %}
+  <text x="{{ (44*sin_(a))|round(1) }}" y="{{ (-44*cos_(a)+4)|round(1) }}" text-anchor="middle" class="svg-h">{{ n }}</text>
+  {% endfor %}
+  {% for a in range(0,360,30) %}<line x1="{{ (50*sin_(a))|round(1) }}" y1="{{ (-50*cos_(a))|round(1) }}" x2="{{ (54*sin_(a))|round(1) }}" y2="{{ (-54*cos_(a))|round(1) }}" stroke="#7b838b"/>{% endfor %}
+  <g transform="rotate({{ deg }})">
+    <line x1="0" y1="-38" x2="0" y2="30" stroke="#1d4f9c" stroke-width="4"/>
+    <path d="M0 38 L-9 22 L9 22 Z" fill="#1d4f9c"/>
+    <circle cy="-38" r="5" fill="#1d4f9c"/>
+  </g>
+  <circle r="4" fill="#16202a"/>
+</svg>
+{%- endmacro %}
+
+{# Шкала уровня пыли: зелёная до P75, жёлтая до P95, красная выше (по замерам 2022 г.) #}
+{% macro scale(v, lv) -%}
+{% set lo, hi = lv.min, lv.max %}
+<div class="scale" style="--p75:{{ ((lv.p75-lo)/(hi-lo)*100)|round(1) }}%;--p95:{{ ((lv.p95-lo)/(hi-lo)*100)|round(1) }}%">
+  {% if v is not none %}<span class="mark" style="left:calc({{ ([[ (v-lo)/(hi-lo)*100, 0]|max, 100]|min)|round(1) }}% - 1px)"></span>{% endif %}
+</div>
+<div class="scale-l"><span>{{ '%.3f'|format(lo) }}</span><span>обычно ≤ {{ '%.3f'|format(lv.p75) }}</span><span>высокий ≥ {{ '%.3f'|format(lv.p95) }}</span><span>{{ '%.3f'|format(hi) }}</span></div>
+{%- endmacro %}

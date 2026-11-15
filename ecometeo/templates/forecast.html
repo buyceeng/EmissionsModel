@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+{% block badge %}{% if online %}<span class="badge live">● ОНЛАЙН-ПОГОДА</span>{% else %}<span class="badge offline">НЕТ СВЯЗИ</span>{% endif %}{% endblock %}
+{% block body %}
+<h1 class="page">Прогноз выбросов пыли по часам <span class="sub">погода: {{ source }}</span></h1>
+{% if err %}<div class="alert">Погода: {{ err }}. Задайте погоду вручную в форме ниже.</div>{% endif %}
+{% if stop_err %}<div class="alert">Остановы: {{ stop_err }}</div>{% endif %}
+
+<section class="panel">
+  <div class="ttl">Исходные данные</div>
+  <div class="body">
+    <form class="ctl" method="get">
+      <label>Горизонт
+        <select name="hours">{% for h, t in [(24,'1 сутки'),(72,'3 суток'),(120,'5 суток'),(168,'7 суток')] %}<option value="{{ h }}" {{ 'selected' if p.hours==h }}>{{ t }}</option>{% endfor %}</select></label>
+      <label>Мощность, МВт·ч<input name="power" value="{{ p.power }}"></label>
+      <label>Лом, т/ч<input name="scrap" value="{{ p.scrap }}"></label>
+      <label>Снизить нагрузку, %<input name="cut" value="{{ p.cut }}"></label>
+      <label>Остановы печи (дд.мм чч-чч; …)<input class="wide" name="stops" value="{{ p.stops }}" placeholder="16.11 10-14; 17.11 8-12"></label>
+      <label>Последний замер прибора, мг/Нм³<input name="meas" value="{{ p.meas if p.meas is not none else '' }}" placeholder="необязательно"></label>
+      {% if not online %}
+      <label>t воздуха, °C<input name="temp" value="{{ p.temp }}"></label>
+      <label>Влажность, %<input name="rh" value="{{ p.rh }}"></label>
+      <label>Давление, гПа<input name="pres" value="{{ p.pres }}"></label>
+      <label>Ветер, км/ч<input name="wind" value="{{ p.wind }}"></label>
+      <label>Ветер дует с, °<input name="wind_dir" value="{{ p.wind_dir }}"></label>
+      {% endif %}
+      <button class="btn">Рассчитать</button>
+    </form>
+    <p class="note">Час «10-14» — часы с 10:00 до 14:00 (по концу часа). На графике остановы — серые полосы.
+      Если ввести последний замер прибора, прогноз ближайших часов сдвигается на текущую ошибку модели (поправка затухает: через 3 ч остаётся {{ '%.0f'|format(rho**3*100) }} %, через сутки — {{ '%.0f'|format(rho**24*100) }} %).</p>
+  </div>
+</section>
+
+<section class="panel" style="margin-top:12px">
+  <div class="ttl">Ожидаемая пыль на газоходе<span class="sub">цветные зоны: обычный · повышенный · высокий уровень (по 2022 г.)</span></div>
+  <div class="body">
+    <div class="chart"><img src="data:image/png;base64,{{ chart }}" alt="Прогноз пыли по часам"></div>
+    {% if extra %}<div class="hint">В прогнозе есть часы с погодой вне опыта модели (в обучении температура от {{ '%.0f'|format(t_lo) }} до {{ '%.0f'|format(t_hi) }} °C) — им доверять меньше.</div>{% endif %}
+  </div>
+</section>
+
+<div class="grid g-2" style="margin-top:12px">
+  <section class="panel">
+    <div class="ttl">Сводка по суткам</div>
+    <div class="body">
+      <table class="tbl"><tr><th>Сутки</th><th>Пыль ср.</th><th>Пыль макс.</th><th>Пик</th><th>t воздуха, °C</th><th>Ветер дует с</th><th>Остановы, ч</th><th>Уровень</th></tr>
+      {% for d in days %}<tr class="{{ d.cls }}"><td class="t">{{ d.day }} {{ d.wd }}</td><td>{{ '%.4f'|format(d.mean) }}</td><td>{{ '%.4f'|format(d.max) }}</td><td>{{ d.peak }}</td>
+        <td>{{ '%.0f…%.0f'|format(d.tmin, d.tmax) }}</td><td class="t">{{ d.wind }}</td><td>{{ d.stops }}</td><td class="t s">{{ ui.lamp(d.cls) }} {{ d.cls|level_name }}</td></tr>{% endfor %}
+      </table>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="ttl">Часы наибольшей пыли</div>
+    <div class="body">
+      <table class="tbl"><tr><th>Час (конец)</th><th>Пыль</th><th>t, °C</th><th>Ветер дует с</th><th>Уровень</th></tr>
+      {% for _, r in peaks.iterrows() %}{% set c = level(r.dust_linear) %}<tr class="{{ c }}"><td class="t">{{ r.ts.strftime('%d.%m %H:%M') }}</td><td>{{ '%.4f'|format(r.dust_linear) }}</td>
+        <td>{{ '%.1f'|format(r.T_air) }}</td><td class="t">{{ r.wind_dir|compass }} ({{ '%.0f'|format(r.wind_dir) }}°)</td><td class="t s">{{ ui.lamp(c) }} {{ c|level_name }}</td></tr>{% endfor %}
+      </table>
+      <p class="note">Пыль растёт в тёплые часы и при юго-западном ветре — это погода, а не процесс.</p>
+    </div>
+  </section>
+</div>
+
+<section class="panel" style="margin-top:12px">
+  <div class="ttl">Сценарии на период НМУ: что даст снижение нагрузки печи</div>
+  <div class="body">
+    <table class="tbl" style="max-width:720px"><tr><th>Снижение мощности и загрузки</th><th>Пыль ср., мг/Нм³</th><th>Пыль макс.</th><th>Изменение</th></tr>
+    {% for s in scen %}<tr><td class="t">{{ s.cut }} %</td><td>{{ '%.4f'|format(s.mean) }}</td><td>{{ '%.4f'|format(s.max) }}</td><td>{{ '%+.1f %%'|format(s.d) }}</td></tr>{% endfor %}
+    </table>
+    <div class="hint">Снижение производства на 50 % уменьшает пыль на газоходе лишь на {{ '%.0f'|format(-scen[-1].d) }} %: основной вклад даёт погода. При НМУ рычаг — работа газоочистки, а не нагрузка печи.</div>
+  </div>
+</section>
+
+<section class="panel" style="margin-top:12px">
+  <div class="ttl">Прогноз по часам</div>
+  <div class="body scroll">
+    <table class="tbl"><tr><th>Час (конец)</th><th>Печь</th><th>Мощность</th><th>t, °C</th><th>Влажн., %</th><th>Ветер, км/ч</th><th>Ветер дует с</th><th>Пыль ожид.</th><th>Норма ±2σ</th><th>Уровень</th></tr>
+    {% for _, r in res.iterrows() %}<tr class="{{ r.cls }}"><td class="t">{{ r.ts.strftime('%d.%m %H:%M') }}</td><td class="t">{{ 'останов' if r.stop else 'работа' }}</td><td>{{ '%.1f'|format(r.power) }}</td>
+      <td>{{ '%.1f'|format(r.T_air) }}</td><td>{{ '%.0f'|format(r.RH_air) }}</td><td>{{ '%.0f'|format(r.wind) }}</td><td class="t">{{ r.wind_dir|compass }}</td>
+      <td>{{ '%.4f'|format(r.dust_linear) }}</td><td>{{ '%.3f…%.3f'|format(r.dust_linear-2*sigma, r.dust_linear+2*sigma) }}</td><td class="t s">{{ ui.lamp(r.cls) }} {{ r.cls|level_name }}{{ ' · вне опыта' if r['вне_опыта'] }}</td></tr>{% endfor %}
+    </table>
+  </div>
+</section>
+{% endblock %}

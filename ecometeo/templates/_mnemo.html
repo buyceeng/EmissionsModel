@@ -1,0 +1,107 @@
+{# Мнемосхема: ДСП → газоход → газоочистка → газоанализатор → дымовая труба; метеостанция.
+   m — словарь значений (см. app.mnemo_values). #}
+{% macro f(v, fmt='%.1f', dflt='—') -%}{{ dflt if v is none else fmt|format(v) }}{%- endmacro %}
+
+{% macro vbox(x, y, w, label, value, unit) -%}
+<g transform="translate({{ x }},{{ y }})">
+  <rect width="{{ w }}" height="22" fill="#e3e6e9" stroke="#7b838b"/>
+  <text x="6" y="15" class="svg-t">{{ label }}</text>
+  <rect x="{{ w-136 }}" y="3" width="100" height="16" fill="#fff" stroke="#7b838b"/>
+  {# длинное значение — мельче, чтобы не вылезало из ячейки #}
+  <text x="{{ w-40 }}" y="15" text-anchor="end" class="svg-v"{% if value|string|length > 11 %} style="font-size:11px"{% endif %}>{{ value }}</text>
+  <text x="{{ w-32 }}" y="15" class="svg-u">{{ unit }}</text>
+</g>
+{%- endmacro %}
+
+{% macro valve(x, y, on) -%}
+{% set c = '#21a336' if on else '#d6262b' %}
+<g transform="translate({{ x }},{{ y }})">
+  <path d="M-11 -9 L11 9 L11 -9 L-11 9 Z" fill="{{ c }}" stroke="#123" stroke-width="1.2"/>
+  <line x1="0" y1="0" x2="0" y2="-15" stroke="#123" stroke-width="2"/><rect x="-6" y="-19" width="12" height="5" fill="#123"/>
+</g>
+{%- endmacro %}
+
+{% macro arrow(x, y, rot=0) -%}<path transform="translate({{ x }},{{ y }}) rotate({{ rot }})" d="M-7 -6 L7 0 L-7 6 Z" fill="#1f8f2f"/>{%- endmacro %}
+
+{% macro mnemo(m) -%}
+{% set work = m.state == 'РАБОТА' %}
+{% set ac = {'ok':'#21a336','warn':'#e6a100','bad':'#d6262b','off':'#8d949b'}[m.an_cls] %}
+<svg viewBox="0 0 1000 400" role="img" aria-label="Мнемосхема газохода ДСП">
+  <defs>
+    <linearGradient id="steel" x1="0" x2="1"><stop offset="0" stop-color="#8e979f"/><stop offset=".5" stop-color="#d3d8dc"/><stop offset="1" stop-color="#7f8890"/></linearGradient>
+    <linearGradient id="melt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd76a"/><stop offset="1" stop-color="#ff6a00"/></linearGradient>
+  </defs>
+
+  {# ---------- газоход (жёлтая труба) ---------- #}
+  <g fill="none" stroke-linejoin="round">
+    <path d="M232 238 H300 V150 H420" stroke="#5a4b00" stroke-width="18"/>
+    <path d="M232 238 H300 V150 H420" stroke="#f2cf00" stroke-width="13"/>
+    <path d="M560 150 H880" stroke="#5a4b00" stroke-width="18"/>
+    <path d="M560 150 H880" stroke="#f2cf00" stroke-width="13"/>
+  </g>
+  {{ arrow(268, 238) }}{{ arrow(300, 196, 270) }}{{ arrow(388, 150) }}{{ arrow(600, 150) }}{{ arrow(780, 150) }}
+  {{ valve(352, 150, work) }}
+
+  {# ---------- ДСП ---------- #}
+  <g>
+    {% for ex in [108, 140, 172] %}<rect x="{{ ex-5 }}" y="120" width="10" height="92" fill="url(#steel)" stroke="#555"/>{% endfor %}
+    <path d="M52 212 H236 L228 228 H60 Z" fill="url(#steel)" stroke="#444"/>
+    <path d="M60 228 H228 V280 Q228 318 144 318 Q60 318 60 280 Z" fill="url(#steel)" stroke="#444" stroke-width="1.5"/>
+    <path d="M74 262 H214 V282 Q214 306 144 306 Q74 306 74 282 Z" fill="{{ 'url(#melt)' if work else '#6d747b' }}" opacity=".95"/>
+    {% if work %}<g stroke="#fff6a8" stroke-width="2">{% for ex in [108, 140, 172] %}<path d="M{{ ex }} 212 l-4 12 l7 6 l-5 12"/>{% endfor %}</g>{% endif %}
+    <text x="144" y="250" text-anchor="middle" class="svg-h">ДСП</text>
+    <text x="144" y="108" text-anchor="middle" class="svg-h">Дуговая печь</text>
+    <circle cx="214" cy="104" r="7" fill="{{ '#21a336' if work else '#d6262b' }}" stroke="#123"/>
+    <text x="226" y="108" class="svg-t">{{ m.state }}</text>
+  </g>
+  {{ vbox(20, 328, 250, 'Мощность', f(m.power), 'МВт·ч') }}
+  {{ vbox(20, 352, 250, 'Лом', f(m.scrap, '%.0f'), 'т/ч') }}
+  {{ vbox(20, 376, 250, 'Режим', m.mode_name or '—', '') }}
+
+  {# ---------- газоочистка (рукавный фильтр) ---------- #}
+  <g>
+    <rect x="420" y="78" width="140" height="150" fill="url(#steel)" stroke="#444" stroke-width="1.5"/>
+    {% for bx in range(434, 552, 16) %}<rect x="{{ bx }}" y="92" width="9" height="104" rx="4" fill="#eef0f1" stroke="#7b838b"/>{% endfor %}
+    <path d="M420 228 L470 270 H510 L560 228 Z" fill="url(#steel)" stroke="#444"/>
+    <text x="490" y="68" text-anchor="middle" class="svg-h">Газоочистка</text>
+  </g>
+
+  {# ---------- газоанализатор ---------- #}
+  <g>
+    <line x1="690" y1="150" x2="690" y2="122" stroke="#123" stroke-width="3"/>
+    <circle cx="690" cy="150" r="10" fill="{{ ac }}" stroke="#123" stroke-width="2"/>
+    <rect x="598" y="8" width="250" height="114" fill="#d5d9dd" stroke="#7b838b" stroke-width="1.5"/>
+    <rect x="598" y="8" width="250" height="20" fill="#1d4f9c"/>
+    <text x="606" y="22" style="font:bold 12px Tahoma;fill:#fff">Газоанализатор · пыль</text>
+    <circle cx="834" cy="18" r="6" fill="{{ ac }}" stroke="#fff"/>
+  </g>
+  {{ vbox(602, 32, 242, 'Замер', f(m.measured, '%.4f', 'нет'), 'мг/Нм³') }}
+  {{ vbox(602, 56, 242, 'Ожидается', f(m.expected, '%.4f'), 'мг/Нм³') }}
+  {{ vbox(602, 80, 242, 'Норма ±2σ', (f(m.lo, '%.3f') ~ '…' ~ f(m.hi, '%.3f')) if m.expected is not none else '—', 'мг/Нм³') }}
+  <text x="602" y="118" style="font:bold 11px Tahoma;fill:{{ ac }}">{{ m.analyzer }}</text>
+
+  {# ---------- дымовая труба ---------- #}
+  <g>
+    <path d="M884 360 L896 60 H924 L936 360 Z" fill="url(#steel)" stroke="#444" stroke-width="1.5"/>
+    {% for sy in [100, 160, 220] %}<rect x="{{ 892 + (sy-60)*0.035 }}" y="{{ sy }}" width="{{ 36 - (sy-60)*0.07 }}" height="8" fill="#c8312d" opacity=".8"/>{% endfor %}
+    <path d="M910 12 L896 40 H924 Z" fill="#1f8f2f"/>
+    <text x="940" y="32" class="svg-u">в атмосферу</text>
+    <text x="910" y="380" text-anchor="middle" class="svg-h">Труба</text>
+  </g>
+
+  {# ---------- метеостанция ---------- #}
+  <g>
+    <line x1="690" y1="225" x2="690" y2="188" stroke="#1d4f9c" stroke-width="2" stroke-dasharray="5 4"/>
+    <path d="M690 180 l-6 10 h12 Z" fill="#1d4f9c"/>
+    <rect x="598" y="226" width="250" height="170" fill="#d5d9dd" stroke="#7b838b" stroke-width="1.5"/>
+    <rect x="598" y="226" width="250" height="20" fill="#1d4f9c"/>
+    <text x="606" y="240" style="font:bold 12px Tahoma;fill:#fff">Метеостанция{{ ' · онлайн' if m.live else ' · архив' }}</text>
+  </g>
+  {{ vbox(602, 250, 242, 'Температура', f(m.T), '°C') }}
+  {{ vbox(602, 274, 242, 'Влажность', f(m.RH, '%.0f'), '%') }}
+  {{ vbox(602, 298, 242, 'Давление', f(m.P, '%.0f'), 'гПа') }}
+  {{ vbox(602, 322, 242, 'Скорость ветра', f(m.wind, '%.0f'), 'км/ч') }}
+  {{ vbox(602, 346, 242, 'Ветер дует с', ((m.wind_dir|compass) ~ ' (' ~ f(m.wind_dir, '%.0f') ~ '°)') if m.wind_dir is not none else '—', '') }}
+  {{ vbox(602, 370, 242, 'Слой перемеш.', f(m.blh, '%.0f'), 'м') }}
+</svg>
+{%- endmacro %}

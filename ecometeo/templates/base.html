@@ -1,0 +1,26 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ЭкоМетео — пыль ДСП</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='scada.css') }}">
+{% block head %}{% endblock %}
+</head><body>
+<div class="topbar">
+  <div class="brand">ЭкоМетео<small>пыль газохода ДСП · погода · прогноз</small></div>
+  <nav class="tabs">
+    <a href="/" class="{{ 'on' if active=='live' }}">Мнемосхема (онлайн)</a>
+    <a href="/forecast" class="{{ 'on' if active=='fc' }}">Прогноз выбросов</a>
+    <a href="/archive" class="{{ 'on' if active=='arch' }}">Архив 2022</a>
+    <a href="/quality" class="{{ 'on' if active=='q' }}">Качество модели</a>
+  </nav>
+  <div class="right">
+    {% block badge %}{% endblock %}
+    <span class="clock" id="clock">--:--:--</span>
+  </div>
+</div>
+<main>{% block body %}{% endblock %}</main>
+<script>
+(function(){const c=document.getElementById('clock');
+function t(){const d=new Date();c.textContent=d.toLocaleDateString('ru-RU')+'  '+d.toLocaleTimeString('ru-RU');}
+t();setInterval(t,1000);})();
+</script>
+</body></html>
